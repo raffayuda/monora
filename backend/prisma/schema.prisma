@@ -1,0 +1,382 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ───
+
+enum users_role {
+  customer
+  event_admin
+  app_admin
+}
+
+enum events_status {
+  draft
+  published
+  cancelled
+}
+
+enum orders_status {
+  pending
+  confirmed
+  cancelled
+  refunded
+}
+
+enum orders_delivery_method {
+  pickup
+  delivery
+}
+
+enum order_items_item_type {
+  ticket
+  merch
+}
+
+enum vouchers_type {
+  percentage
+  flat
+}
+
+enum refunds_status {
+  pending
+  approved
+  rejected
+}
+
+enum chat_messages_sender {
+  customer
+  organizer
+}
+
+// ─── MODELS ───
+
+model User {
+  id            BigInt     @id @default(autoincrement()) @db.UnsignedBigInt
+  name          String     @db.VarChar(100)
+  email         String     @unique @db.VarChar(255)
+  password_hash String     @db.VarChar(255)
+  phone         String?    @db.VarChar(20)
+  role          users_role @default(customer)
+  is_active     Boolean    @default(true)
+  created_at    DateTime   @default(now())
+  updated_at    DateTime   @updatedAt
+
+  events             Event[]
+  orders             Order[]
+  refunds            Refund[]
+  chat_conversations ChatConversation[]
+  voucher_usages     VoucherUsage[]
+
+  @@index([email], map: "idx_users_email")
+  @@index([role], map: "idx_users_role")
+  @@map("users")
+}
+
+model Category {
+  id         BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  name       String   @unique @db.VarChar(100)
+  icon       String?  @db.VarChar(50)
+  gradient   String?  @db.VarChar(120)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  events Event[]
+
+  @@map("categories")
+}
+
+model Event {
+  id            BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  title         String        @db.VarChar(255)
+  slug          String        @unique @db.VarChar(255)
+  display_date  String?       @db.VarChar(100)
+  full_date     DateTime?     @db.Date
+  time_range    String?       @db.VarChar(50)
+  venue         String        @db.VarChar(255)
+  city          String        @db.VarChar(100)
+  province      String?       @db.VarChar(100)
+  address       String?       @db.VarChar(500)
+  latitude      Decimal?      @db.Decimal(10, 7)
+  longitude     Decimal?      @db.Decimal(10, 7)
+  category_id   BigInt?       @db.UnsignedBigInt
+  image_url     String?       @db.VarChar(500)
+  thumbnail_url String?       @db.VarChar(500)
+  description   String?       @db.Text
+  artist        String?       @db.VarChar(255)
+  organizer     String?       @db.VarChar(255)
+  status        events_status @default(draft)
+  has_merch     Boolean       @default(false)
+  created_by    BigInt        @db.UnsignedBigInt
+  created_at    DateTime      @default(now())
+  updated_at    DateTime      @updatedAt
+
+  category           Category?          @relation(fields: [category_id], references: [id], onDelete: SetNull)
+  creator            User               @relation(fields: [created_by], references: [id], onDelete: Cascade)
+  event_tags         EventTag[]
+  ticket_types       TicketType[]
+  merchandise        Merchandise[]
+  order_items        OrderItem[]
+  discounts          EventDiscount[]
+  vouchers           Voucher[]
+  refunds            Refund[]
+  chat_conversations ChatConversation[]
+
+  @@index([slug], map: "idx_events_slug")
+  @@index([category_id], map: "idx_events_category")
+  @@index([status], map: "idx_events_status")
+  @@index([full_date], map: "idx_events_full_date")
+  @@index([city], map: "idx_events_city")
+  @@index([created_by], map: "idx_events_created_by")
+  @@map("events")
+}
+
+model Tag {
+  id         BigInt     @id @default(autoincrement()) @db.UnsignedBigInt
+  name       String     @unique @db.VarChar(50)
+  event_tags EventTag[]
+
+  @@map("tags")
+}
+
+model EventTag {
+  event_id BigInt @db.UnsignedBigInt
+  tag_id   BigInt @db.UnsignedBigInt
+
+  event Event @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  tag   Tag   @relation(fields: [tag_id], references: [id], onDelete: Cascade)
+
+  @@id([event_id, tag_id])
+  @@map("event_tags")
+}
+
+model TicketType {
+  id          BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  event_id    BigInt   @db.UnsignedBigInt
+  type_name   String   @db.VarChar(100)
+  price       Decimal  @default(0) @db.Decimal(12, 2)
+  description String?  @db.VarChar(500)
+  available   Int      @default(0) @db.UnsignedInt
+  created_at  DateTime @default(now())
+
+  event       Event       @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  order_items OrderItem[]
+
+  @@index([event_id], map: "idx_tt_event")
+  @@map("ticket_types")
+}
+
+model Merchandise {
+  id         BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  event_id   BigInt   @db.UnsignedBigInt
+  name       String   @db.VarChar(200)
+  price      Decimal  @default(0) @db.Decimal(12, 2)
+  image_url  String?  @db.VarChar(500)
+  stock      Int      @default(0) @db.UnsignedInt
+  created_at DateTime @default(now())
+
+  event       Event              @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  sizes       MerchandiseSize[]
+  colors      MerchandiseColor[]
+  order_items OrderItem[]
+
+  @@index([event_id], map: "idx_merch_event")
+  @@map("merchandise")
+}
+
+model MerchandiseSize {
+  id        BigInt @id @default(autoincrement()) @db.UnsignedBigInt
+  merch_id  BigInt @db.UnsignedBigInt
+  size_name String @db.VarChar(10)
+
+  merchandise Merchandise @relation(fields: [merch_id], references: [id], onDelete: Cascade)
+
+  @@map("merchandise_sizes")
+}
+
+model MerchandiseColor {
+  id         BigInt @id @default(autoincrement()) @db.UnsignedBigInt
+  merch_id   BigInt @db.UnsignedBigInt
+  color_name String @db.VarChar(30)
+
+  merchandise Merchandise @relation(fields: [merch_id], references: [id], onDelete: Cascade)
+
+  @@map("merchandise_colors")
+}
+
+model Order {
+  id               BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
+  order_code       String                  @unique @db.VarChar(30)
+  user_id          BigInt                  @db.UnsignedBigInt
+  status           orders_status           @default(pending)
+  subtotal         Decimal                 @default(0) @db.Decimal(14, 2)
+  voucher_code     String?                 @db.VarChar(50)
+  voucher_discount Decimal                 @default(0) @db.Decimal(14, 2)
+  service_fee      Decimal                 @default(0) @db.Decimal(14, 2)
+  total            Decimal                 @default(0) @db.Decimal(14, 2)
+  delivery_method  orders_delivery_method?
+  delivery_address String?                 @db.VarChar(500)
+  delivery_city    String?                 @db.VarChar(100)
+  delivery_zip     String?                 @db.VarChar(20)
+  customer_name    String?                 @db.VarChar(100)
+  customer_email   String?                 @db.VarChar(255)
+  customer_phone   String?                 @db.VarChar(20)
+  created_at       DateTime                @default(now())
+  updated_at       DateTime                @updatedAt
+
+  user           User           @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  items          OrderItem[]
+  refunds        Refund[]
+  voucher_usages VoucherUsage[]
+
+  @@index([user_id], map: "idx_orders_user")
+  @@index([status], map: "idx_orders_status")
+  @@index([order_code], map: "idx_orders_code")
+  @@map("orders")
+}
+
+model OrderItem {
+  id             BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  order_id       BigInt              @db.UnsignedBigInt
+  item_type      order_items_item_type
+  event_id       BigInt?             @db.UnsignedBigInt
+  ticket_type_id BigInt?             @db.UnsignedBigInt
+  merch_id       BigInt?             @db.UnsignedBigInt
+  title          String              @db.VarChar(255)
+  quantity       Int                 @default(1) @db.UnsignedInt
+  unit_price     Decimal             @default(0) @db.Decimal(12, 2)
+  original_price Decimal?            @db.Decimal(12, 2)
+  size           String?             @db.VarChar(10)
+  color          String?             @db.VarChar(30)
+  event_date     String?             @db.VarChar(100)
+  event_image    String?             @db.VarChar(500)
+
+  order       Order        @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  event       Event?       @relation(fields: [event_id], references: [id], onDelete: SetNull)
+  ticket_type TicketType?  @relation(fields: [ticket_type_id], references: [id], onDelete: SetNull)
+  merchandise Merchandise? @relation(fields: [merch_id], references: [id], onDelete: SetNull)
+  refunds     Refund[]
+
+  @@index([order_id], map: "idx_oi_order")
+  @@index([event_id], map: "idx_oi_event")
+  @@map("order_items")
+}
+
+model Voucher {
+  id           BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  event_id     BigInt?       @db.UnsignedBigInt
+  code         String        @unique @db.VarChar(50)
+  type         vouchers_type @default(percentage)
+  value        Decimal       @default(0) @db.Decimal(12, 2)
+  min_purchase Decimal       @default(0) @db.Decimal(12, 2)
+  max_uses     Int           @default(0) @db.UnsignedInt
+  used_count   Int           @default(0) @db.UnsignedInt
+  description  String?       @db.VarChar(255)
+  is_active    Boolean       @default(true)
+  expires_at   DateTime?
+  created_at   DateTime      @default(now())
+
+  event          Event?         @relation(fields: [event_id], references: [id], onDelete: SetNull)
+  voucher_usages VoucherUsage[]
+
+  @@index([code], map: "idx_voucher_code")
+  @@index([event_id], map: "idx_voucher_event")
+  @@map("vouchers")
+}
+
+model VoucherUsage {
+  id              BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  voucher_id      BigInt   @db.UnsignedBigInt
+  order_id        BigInt   @db.UnsignedBigInt
+  user_id         BigInt   @db.UnsignedBigInt
+  discount_amount Decimal  @default(0) @db.Decimal(14, 2)
+  used_at         DateTime @default(now())
+
+  voucher Voucher @relation(fields: [voucher_id], references: [id], onDelete: Cascade)
+  order   Order   @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([voucher_id], map: "idx_vu_voucher")
+  @@index([order_id], map: "idx_vu_order")
+  @@index([user_id], map: "idx_vu_user")
+  @@map("voucher_usages")
+}
+
+model EventDiscount {
+  id         BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  event_id   BigInt    @db.UnsignedBigInt
+  percentage Decimal   @db.Decimal(5, 2)
+  label      String?   @db.VarChar(100)
+  starts_at  DateTime?
+  expires_at DateTime?
+  is_active  Boolean   @default(true)
+  created_at DateTime  @default(now())
+
+  event Event @relation(fields: [event_id], references: [id], onDelete: Cascade)
+
+  @@index([event_id], map: "idx_ed_event")
+  @@map("event_discounts")
+}
+
+model Refund {
+  id           BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  refund_code  String         @unique @db.VarChar(30)
+  order_id     BigInt         @db.UnsignedBigInt
+  order_item_id BigInt?       @db.UnsignedBigInt
+  event_id     BigInt?        @db.UnsignedBigInt
+  user_id      BigInt         @db.UnsignedBigInt
+  reason       String?        @db.Text
+  status       refunds_status @default(pending)
+  requested_at DateTime       @default(now())
+  processed_at DateTime?
+
+  order      Order      @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  order_item OrderItem? @relation(fields: [order_item_id], references: [id], onDelete: SetNull)
+  event      Event?     @relation(fields: [event_id], references: [id], onDelete: SetNull)
+  user       User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([order_id], map: "idx_refund_order")
+  @@index([order_item_id], map: "idx_refund_order_item")
+  @@index([event_id], map: "idx_refund_event")
+  @@index([user_id], map: "idx_refund_user")
+  @@index([status], map: "idx_refund_status")
+  @@map("refunds")
+}
+
+model ChatConversation {
+  id             BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  user_id        BigInt   @db.UnsignedBigInt
+  event_id       BigInt   @db.UnsignedBigInt
+  user_name      String?  @db.VarChar(100)
+  event_title    String?  @db.VarChar(255)
+  organizer_name String?  @db.VarChar(255)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  user     User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  event    Event         @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@unique([user_id, event_id], map: "uq_chat_user_event")
+  @@index([user_id], map: "idx_chat_user")
+  @@index([event_id], map: "idx_chat_event")
+  @@map("chat_conversations")
+}
+
+model ChatMessage {
+  id              BigInt               @id @default(autoincrement()) @db.UnsignedBigInt
+  conversation_id BigInt               @db.UnsignedBigInt
+  sender          chat_messages_sender
+  message_text    String               @db.Text
+  created_at      DateTime             @default(now())
+
+  conversation ChatConversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+
+  @@index([conversation_id], map: "idx_cm_conv")
+  @@map("chat_messages")
+}
