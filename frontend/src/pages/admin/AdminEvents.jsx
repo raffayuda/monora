@@ -13,6 +13,7 @@ function AdminEvents() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [menuOpen, setMenuOpen] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [deleting, setDeleting] = useState(false)
 
   const filteredEvents = useMemo(() => {
     return myEvents.filter(e => {
@@ -23,10 +24,17 @@ function AdminEvents() {
     })
   }, [myEvents, searchQuery, statusFilter])
 
-  const handleDelete = (eventId) => {
-    deleteAdminEvent(eventId)
-    setConfirmDelete(null)
-    setMenuOpen(null)
+  const handleDelete = async (eventId) => {
+    setDeleting(true)
+    try {
+      await deleteAdminEvent(eventId)
+      setConfirmDelete(null)
+      setMenuOpen(null)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -228,15 +236,17 @@ function AdminEvents() {
               <div className="flex gap-3">
                 <button
                   onClick={() => setConfirmDelete(null)}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white/60 bg-white/5 border-none cursor-pointer hover:bg-white/10 transition-all"
+                  disabled={deleting}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white/60 bg-white/5 border-none cursor-pointer hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => handleDelete(confirmDelete)}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white bg-red-500 border-none cursor-pointer hover:bg-red-600 transition-all"
+                  disabled={deleting}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white bg-red-500 border-none cursor-pointer hover:bg-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Delete
+                  {deleting ? 'Deleting...' : 'Delete'}
                 </button>
               </div>
             </motion.div>

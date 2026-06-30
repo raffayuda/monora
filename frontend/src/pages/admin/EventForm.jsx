@@ -59,6 +59,7 @@ function EventForm() {
   const { addAdminEvent, updateAdminEvent, adminEvents, categories } = useAuth()
 
   const [step, setStep] = useState(0)
+  const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({
     title: '', slug: '', date: '', fullDate: '', time: '',
     venue: '', city: '', province: '', address: '', lat: '-6.2', lng: '106.8',
@@ -153,26 +154,33 @@ function EventForm() {
 
   const handleSubmit = async () => {
     if (!validateStep()) return
-    const eventData = {
-      ...form,
-      lat: form.lat ? parseFloat(form.lat) : 0,
-      lng: form.lng ? parseFloat(form.lng) : 0,
-      tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-      tickets: tickets.filter(t => t.type).map((t, i) => ({
-        id: `t-${Date.now()}-${i}`, type: t.type,
-        price: parseFloat(t.price) || 0, description: t.description, available: parseInt(t.available) || 0,
-      })),
-      merchandise: merchandise.filter(m => m.name).map((m, i) => ({
-        id: `m-${Date.now()}-${i}`, name: m.name, price: parseFloat(m.price) || 0, image: m.image,
-        sizes: m.sizes ? m.sizes.split(',').map(s => s.trim()).filter(Boolean) : [],
-        colors: m.colors ? m.colors.split(',').map(c => c.trim()).filter(Boolean) : [],
-        stock: parseInt(m.stock) || 0,
-      })),
-      hasMerch: merchandise.filter(m => m.name).length > 0,
+    setLoading(true)
+    try {
+      const eventData = {
+        ...form,
+        lat: form.lat ? parseFloat(form.lat) : 0,
+        lng: form.lng ? parseFloat(form.lng) : 0,
+        tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+        tickets: tickets.filter(t => t.type).map((t, i) => ({
+          id: `t-${Date.now()}-${i}`, type: t.type,
+          price: parseFloat(t.price) || 0, description: t.description, available: parseInt(t.available) || 0,
+        })),
+        merchandise: merchandise.filter(m => m.name).map((m, i) => ({
+          id: `m-${Date.now()}-${i}`, name: m.name, price: parseFloat(m.price) || 0, image: m.image,
+          sizes: m.sizes ? m.sizes.split(',').map(s => s.trim()).filter(Boolean) : [],
+          colors: m.colors ? m.colors.split(',').map(c => c.trim()).filter(Boolean) : [],
+          stock: parseInt(m.stock) || 0,
+        })),
+        hasMerch: merchandise.filter(m => m.name).length > 0,
+      }
+      if (isEdit) { await updateAdminEvent(Number(id), eventData) }
+      else { await addAdminEvent(eventData) }
+      navigate(backUrl)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
     }
-    if (isEdit) { await updateAdminEvent(Number(id), eventData) }
-    else { await addAdminEvent(eventData) }
-    navigate(backUrl)
   }
 
   const inputCls = "w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-white/30 outline-none focus:border-orange-500/50 transition-colors"
@@ -523,54 +531,58 @@ function EventForm() {
               <p className="text-white/30 text-sm mb-6 m-0">Optional — add merchandise for your event</p>
               <div className="space-y-3">
                 {merchandise.map((item, index) => (
-                  <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-3 p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <div className="md:col-span-3">
-                      <label className={labelCls}>Name</label>
-                      <input className={inputCls} value={item.name} onChange={(e) => {
-                        const updated = [...merchandise]; updated[index].name = e.target.value; setMerchandise(updated)
-                      }} placeholder="T-Shirt" />
+                  <div key={index} className="space-y-3 p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                      <div className="md:col-span-6">
+                        <label className={labelCls}>Name</label>
+                        <input className={inputCls} value={item.name} disabled={loading} onChange={(e) => {
+                          const updated = [...merchandise]; updated[index].name = e.target.value; setMerchandise(updated)
+                        }} placeholder="T-Shirt" />
+                      </div>
+                      <div className="md:col-span-3">
+                        <label className={labelCls}>Price ($)</label>
+                        <input type="number" className={inputCls} value={item.price} disabled={loading} onChange={(e) => {
+                          const updated = [...merchandise]; updated[index].price = e.target.value; setMerchandise(updated)
+                        }} placeholder="35" />
+                      </div>
+                      <div className="md:col-span-3">
+                        <label className={labelCls}>Stock</label>
+                        <input type="number" className={inputCls} value={item.stock} disabled={loading} onChange={(e) => {
+                          const updated = [...merchandise]; updated[index].stock = e.target.value; setMerchandise(updated)
+                        }} placeholder="100" />
+                      </div>
                     </div>
-                    <div className="md:col-span-2">
-                      <label className={labelCls}>Price ($)</label>
-                      <input type="number" className={inputCls} value={item.price} onChange={(e) => {
-                        const updated = [...merchandise]; updated[index].price = e.target.value; setMerchandise(updated)
-                      }} placeholder="35" />
-                    </div>
-                    <div className="md:col-span-3">
-                      <label className={labelCls}>Image URL</label>
-                      <input className={inputCls} value={item.image} onChange={(e) => {
-                        const updated = [...merchandise]; updated[index].image = e.target.value; setMerchandise(updated)
-                      }} placeholder="https://..." />
-                    </div>
-                    <div className="md:col-span-1">
-                      <label className={labelCls}>Sizes</label>
-                      <input className={inputCls} value={item.sizes} onChange={(e) => {
-                        const updated = [...merchandise]; updated[index].sizes = e.target.value; setMerchandise(updated)
-                      }} placeholder="S,M,L" />
-                    </div>
-                    <div className="md:col-span-1">
-                      <label className={labelCls}>Colors</label>
-                      <input className={inputCls} value={item.colors} onChange={(e) => {
-                        const updated = [...merchandise]; updated[index].colors = e.target.value; setMerchandise(updated)
-                      }} placeholder="Black" />
-                    </div>
-                    <div className="md:col-span-1">
-                      <label className={labelCls}>Stock</label>
-                      <input type="number" className={inputCls} value={item.stock} onChange={(e) => {
-                        const updated = [...merchandise]; updated[index].stock = e.target.value; setMerchandise(updated)
-                      }} placeholder="100" />
-                    </div>
-                    <div className="md:col-span-1 flex items-end justify-center pb-1">
-                      <button type="button" onClick={() => setMerchandise(merchandise.filter((_, i) => i !== index))}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-red-400/50 hover:text-red-400 hover:bg-red-500/10 border-none bg-transparent cursor-pointer transition-all">
-                        <IoTrashOutline />
-                      </button>
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                      <div className="md:col-span-5">
+                        <label className={labelCls}>Image URL</label>
+                        <input className={inputCls} value={item.image} disabled={loading} onChange={(e) => {
+                          const updated = [...merchandise]; updated[index].image = e.target.value; setMerchandise(updated)
+                        }} placeholder="https://..." />
+                      </div>
+                      <div className="md:col-span-3">
+                        <label className={labelCls}>Sizes</label>
+                        <input className={inputCls} value={item.sizes} disabled={loading} onChange={(e) => {
+                          const updated = [...merchandise]; updated[index].sizes = e.target.value; setMerchandise(updated)
+                        }} placeholder="S,M,L" />
+                      </div>
+                      <div className="md:col-span-3">
+                        <label className={labelCls}>Colors</label>
+                        <input className={inputCls} value={item.colors} disabled={loading} onChange={(e) => {
+                          const updated = [...merchandise]; updated[index].colors = e.target.value; setMerchandise(updated)
+                        }} placeholder="Black" />
+                      </div>
+                      <div className="md:col-span-1 flex items-end justify-center pb-1">
+                        <button type="button" disabled={loading} onClick={() => setMerchandise(merchandise.filter((_, i) => i !== index))}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-red-400/50 hover:text-red-400 hover:bg-red-500/10 border-none bg-transparent cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                          <IoTrashOutline />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
-              <button type="button" onClick={() => setMerchandise([...merchandise, { ...emptyMerch }])}
-                className="flex items-center gap-2 text-orange-400 text-sm font-medium bg-transparent border-none cursor-pointer hover:text-orange-300 transition-colors mt-4">
+              <button type="button" disabled={loading} onClick={() => setMerchandise([...merchandise, { ...emptyMerch }])}
+                className="flex items-center gap-2 text-orange-400 text-sm font-medium bg-transparent border-none cursor-pointer hover:text-orange-300 transition-colors mt-4 disabled:opacity-50 disabled:cursor-not-allowed">
                 <IoAddCircleOutline /> Add Merchandise
               </button>
             </div>
@@ -583,7 +595,8 @@ function EventForm() {
         <button
           type="button"
           onClick={step === 0 ? () => navigate(backUrl) : goBack}
-          className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-medium text-white/50 bg-white/5 border-none cursor-pointer hover:bg-white/10 transition-all"
+          disabled={loading}
+          className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-medium text-white/50 bg-white/5 border-none cursor-pointer hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <IoArrowBack className="text-sm" />
           {step === 0 ? 'Cancel' : 'Back'}
@@ -592,15 +605,28 @@ function EventForm() {
         <div className="flex items-center gap-3">
           {step === STEPS.length - 1 ? (
             <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={loading ? {} : { scale: 1.02 }}
+              whileTap={loading ? {} : { scale: 0.98 }}
               type="button"
               onClick={handleSubmit}
-              className="flex items-center gap-2 text-white px-8 py-3 rounded-xl text-sm font-semibold border-none cursor-pointer"
+              disabled={loading}
+              className="flex items-center gap-2 text-white px-8 py-3 rounded-xl text-sm font-semibold border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }}
             >
-              <IoSaveOutline className="text-lg" />
-              {isEdit ? 'Save Changes' : 'Create Event'}
+              {loading ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <IoSaveOutline className="text-lg" />
+                  {isEdit ? 'Save Changes' : 'Create Event'}
+                </>
+              )}
             </motion.button>
           ) : (
             <motion.button
@@ -608,7 +634,8 @@ function EventForm() {
               whileTap={{ scale: 0.98 }}
               type="button"
               onClick={goNext}
-              className="flex items-center gap-2 text-white px-6 py-3 rounded-xl text-sm font-semibold border-none cursor-pointer"
+              disabled={loading}
+              className="flex items-center gap-2 text-white px-6 py-3 rounded-xl text-sm font-semibold border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }}
             >
               Next

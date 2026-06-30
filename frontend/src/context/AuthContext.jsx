@@ -167,6 +167,7 @@ export function AuthProvider({ children }) {
       })
     } catch (err) {
       console.error('Update event error:', err)
+      throw err
     }
   }
 
@@ -177,6 +178,7 @@ export function AuthProvider({ children }) {
       setPublicEvents(prev => prev.filter(e => Number(e.id) !== Number(eventId)))
     } catch (err) {
       console.error('Delete event error:', err)
+      throw err
     }
   }
 
@@ -278,22 +280,26 @@ export function AuthProvider({ children }) {
   const updateVoucher = async (code, updates) => {
     try {
       const v = vouchers.find(v => v.code === code)
-      if (!v) return
+      if (!v) return { success: false, message: 'Voucher not found' }
       const data = await apiFetch(`/vouchers/${v.id}`, { method: 'PUT', body: updates })
       setVouchers(prev => prev.map(v => v.code === code ? data : v))
+      return { success: true }
     } catch (err) {
       console.error('Update voucher error:', err)
+      return { success: false, message: err.message }
     }
   }
 
   const deleteVoucher = async (code) => {
     try {
       const v = vouchers.find(v => v.code === code)
-      if (!v) return
+      if (!v) return { success: false, message: 'Voucher not found' }
       await apiFetch(`/vouchers/${v.id}`, { method: 'DELETE' })
       setVouchers(prev => prev.filter(v => v.code !== code))
+      return { success: true }
     } catch (err) {
       console.error('Delete voucher error:', err)
+      return { success: false, message: err.message }
     }
   }
 
@@ -307,8 +313,10 @@ export function AuthProvider({ children }) {
       setPublicEvents(prev => prev.map(e =>
         Number(e.id) === Number(eventId) ? { ...e, discount } : e
       ))
+      return { success: true }
     } catch (err) {
       console.error('Set discount error:', err)
+      return { success: false, message: err.message }
     }
   }
 
@@ -324,8 +332,10 @@ export function AuthProvider({ children }) {
       }
       setAdminEvents(prev => prev.map(removeDiscount))
       setPublicEvents(prev => prev.map(removeDiscount))
+      return { success: true }
     } catch (err) {
       console.error('Remove discount error:', err)
+      return { success: false, message: err.message }
     }
   }
 

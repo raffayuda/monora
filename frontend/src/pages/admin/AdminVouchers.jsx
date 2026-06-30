@@ -15,6 +15,7 @@ function AdminVouchers() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
 
   const filtered = vouchers.filter(v =>
     v.code.toLowerCase().includes(search.toLowerCase()) ||
@@ -47,26 +48,46 @@ function AdminVouchers() {
     e.preventDefault()
     if (!form.code.trim() || !form.value) { setError('Code and value are required'); return }
     if (!form.eventId) { setError('Event is required'); return }
-    if (editingCode) {
-      updateVoucher(editingCode, {
-        eventId: Number(form.eventId),
-        type: form.type,
-        value: Number(form.value),
-        minPurchase: Number(form.minPurchase) || 0,
-        maxUses: Number(form.maxUses) || 100,
-        description: form.description,
-      })
-    } else {
-      const result = await addVoucher(form)
-      if (!result.success) { setError(result.message); return }
+    setSubmitting(true)
+    setError('')
+    try {
+      if (editingCode) {
+        const result = await updateVoucher(editingCode, {
+          eventId: Number(form.eventId),
+          type: form.type,
+          value: Number(form.value),
+          minPurchase: Number(form.minPurchase) || 0,
+          maxUses: Number(form.maxUses) || 100,
+          description: form.description,
+        })
+        if (result && !result.success) { setError(result.message || 'Failed to update voucher'); return }
+      } else {
+        const result = await addVoucher(form)
+        if (!result.success) { setError(result.message); return }
+      }
+      setShowModal(false)
+    } catch (err) {
+      setError(err.message || 'An error occurred')
+    } finally {
+      setSubmitting(false)
     }
-    setShowModal(false)
   }
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (confirmDelete) {
-      deleteVoucher(confirmDelete)
-      setConfirmDelete(null)
+      setSubmitting(true)
+      try {
+        const result = await deleteVoucher(confirmDelete)
+        if (result && !result.success) {
+          alert(result.message || 'Failed to delete voucher')
+        } else {
+          setConfirmDelete(null)
+        }
+      } catch (err) {
+        alert(err.message || 'An error occurred')
+      } finally {
+        setSubmitting(false)
+      }
     }
   }
 
@@ -222,11 +243,11 @@ function AdminVouchers() {
                     placeholder="Short description..." className="w-full px-4 py-2.5 rounded-xl text-white text-sm outline-none placeholder-white/30" style={inputStyle} />
                 </div>
                 <div className="flex gap-3 pt-2">
-                  <button type="button" onClick={() => setShowModal(false)}
-                    className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white/60 bg-white/5 border-none cursor-pointer hover:bg-white/10 transition-all">Cancel</button>
-                  <button type="submit"
-                    className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white border-none cursor-pointer hover:opacity-90 transition-all"
-                    style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }}>{editingCode ? 'Update' : 'Create'}</button>
+                  <button type="button" onClick={() => setShowModal(false)} disabled={submitting}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white/60 bg-white/5 border-none cursor-pointer hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed">Cancel</button>
+                  <button type="submit" disabled={submitting}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white border-none cursor-pointer hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }}>{submitting ? 'Saving...' : (editingCode ? 'Update' : 'Create')}</button>
                 </div>
               </form>
             </motion.div>
@@ -239,15 +260,17 @@ function AdminVouchers() {
         {confirmDelete && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }} onClick={() => setConfirmDelete(null)}>
+            style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }} onClick={() => !submitting && setConfirmDelete(null)}>
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
               className="rounded-2xl p-6 w-full max-w-sm" style={{ background: 'rgba(20,22,45,0.98)', border: '1px solid rgba(255,255,255,0.1)' }}
               onClick={e => e.stopPropagation()}>
               <h3 className="text-white font-semibold text-lg mb-2">Delete Voucher?</h3>
               <p className="text-white/40 text-sm mb-6">Delete voucher <span className="text-orange-400 font-mono">{confirmDelete}</span>? This cannot be undone.</p>
               <div className="flex gap-3">
-                <button onClick={() => setConfirmDelete(null)} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white/60 bg-white/5 border-none cursor-pointer hover:bg-white/10 transition-all">Cancel</button>
-                <button onClick={handleDeleteConfirm} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white bg-red-500 border-none cursor-pointer hover:bg-red-600 transition-all">Delete</button>
+                <button onClick={() => setConfirmDelete(null)} disabled={submitting} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white/60 bg-white/5 border-none cursor-pointer hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed">Cancel</button>
+                <button onClick={handleDeleteConfirm} disabled={submitting} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white bg-red-500 border-none cursor-pointer hover:bg-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                  {submitting ? 'Deleting...' : 'Delete'}
+                </button>
               </div>
             </motion.div>
           </motion.div>

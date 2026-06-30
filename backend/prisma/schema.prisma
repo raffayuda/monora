@@ -105,8 +105,8 @@ model Event {
   latitude      Decimal?      @db.Decimal(10, 7)
   longitude     Decimal?      @db.Decimal(10, 7)
   category_id   BigInt?       @db.UnsignedBigInt
-  image_url     String?       @db.VarChar(500)
-  thumbnail_url String?       @db.VarChar(500)
+  image_url     String?       @db.LongText
+  thumbnail_url String?       @db.LongText
   description   String?       @db.Text
   artist        String?       @db.VarChar(255)
   organizer     String?       @db.VarChar(255)
@@ -176,7 +176,7 @@ model Merchandise {
   event_id   BigInt   @db.UnsignedBigInt
   name       String   @db.VarChar(200)
   price      Decimal  @default(0) @db.Decimal(12, 2)
-  image_url  String?  @db.VarChar(500)
+  image_url  String?  @db.LongText
   stock      Int      @default(0) @db.UnsignedInt
   created_at DateTime @default(now())
 
@@ -254,7 +254,7 @@ model OrderItem {
   size           String?             @db.VarChar(10)
   color          String?             @db.VarChar(30)
   event_date     String?             @db.VarChar(100)
-  event_image    String?             @db.VarChar(500)
+  event_image    String?             @db.LongText
 
   order       Order        @relation(fields: [order_id], references: [id], onDelete: Cascade)
   event       Event?       @relation(fields: [event_id], references: [id], onDelete: SetNull)

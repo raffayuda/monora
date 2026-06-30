@@ -12,6 +12,8 @@ function AdminPromos() {
   const [discountModal, setDiscountModal] = useState(null)
   const [form, setForm] = useState({ percentage: '', label: '' })
   const [confirmRemove, setConfirmRemove] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
 
   const filtered = useMemo(() => {
     let result = [...myEvents]
@@ -34,20 +36,40 @@ function AdminPromos() {
     setDiscountModal(event)
   }
 
-  const handleSaveDiscount = (e) => {
+  const handleSaveDiscount = async (e) => {
     e.preventDefault()
     if (!form.percentage || Number(form.percentage) <= 0 || Number(form.percentage) > 100) return
-    setEventDiscount(discountModal.id, {
-      percentage: Number(form.percentage),
-      label: form.label || `${form.percentage}% OFF`,
-    })
-    setDiscountModal(null)
+    setSubmitting(true)
+    setError('')
+    try {
+      const result = await setEventDiscount(discountModal.id, {
+        percentage: Number(form.percentage),
+        label: form.label || `${form.percentage}% OFF`,
+      })
+      if (result && !result.success) { setError(result.message || 'Failed to save discount'); return }
+      setDiscountModal(null)
+    } catch (err) {
+      setError(err.message || 'An error occurred')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  const handleRemoveDiscount = () => {
+  const handleRemoveDiscount = async () => {
     if (confirmRemove) {
-      removeEventDiscount(confirmRemove.id)
-      setConfirmRemove(null)
+      setSubmitting(true)
+      try {
+        const result = await removeEventDiscount(confirmRemove.id)
+        if (result && !result.success) {
+          alert(result.message || 'Failed to remove discount')
+        } else {
+          setConfirmRemove(null)
+        }
+      } catch (err) {
+        alert(err.message || 'An error occurred')
+      } finally {
+        setSubmitting(false)
+      }
     }
   }
 
@@ -166,23 +188,26 @@ function AdminPromos() {
                 <button onClick={() => setDiscountModal(null)} className="text-white/30 hover:text-white bg-transparent border-none cursor-pointer"><IoCloseOutline className="text-xl" /></button>
               </div>
               <p className="text-white/40 text-sm mb-4 m-0">{discountModal.title}</p>
+               {error && <div className="text-red-400 text-sm mb-3 px-3 py-2 rounded-lg bg-red-500/10">{error}</div>}
               <form onSubmit={handleSaveDiscount} className="space-y-4">
                 <div>
                   <label className="text-white/50 text-xs font-medium block mb-1.5">Discount Percentage</label>
-                  <input type="number" min="1" max="100" value={form.percentage} onChange={e => setForm({ ...form, percentage: e.target.value })}
-                    placeholder="e.g. 15" className="w-full px-4 py-2.5 rounded-xl text-white text-sm outline-none placeholder-white/30" style={inputStyle} />
+                  <input type="number" min="1" max="100" value={form.percentage} disabled={submitting} onChange={e => setForm({ ...form, percentage: e.target.value })}
+                    placeholder="e.g. 15" className="w-full px-4 py-2.5 rounded-xl text-white text-sm outline-none placeholder-white/30 disabled:opacity-50" style={inputStyle} />
                 </div>
                 <div>
                   <label className="text-white/50 text-xs font-medium block mb-1.5">Promo Label</label>
-                  <input type="text" value={form.label} onChange={e => setForm({ ...form, label: e.target.value })}
-                    placeholder="e.g. Early Bird Sale" className="w-full px-4 py-2.5 rounded-xl text-white text-sm outline-none placeholder-white/30" style={inputStyle} />
+                  <input type="text" value={form.label} disabled={submitting} onChange={e => setForm({ ...form, label: e.target.value })}
+                    placeholder="e.g. Early Bird Sale" className="w-full px-4 py-2.5 rounded-xl text-white text-sm outline-none placeholder-white/30 disabled:opacity-50" style={inputStyle} />
                 </div>
                 <div className="flex gap-3 pt-2">
-                  <button type="button" onClick={() => setDiscountModal(null)}
-                    className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white/60 bg-white/5 border-none cursor-pointer hover:bg-white/10 transition-all">Cancel</button>
-                  <button type="submit"
-                    className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white border-none cursor-pointer hover:opacity-90 transition-all"
-                    style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }}>Save</button>
+                  <button type="button" onClick={() => setDiscountModal(null)} disabled={submitting}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white/60 bg-white/5 border-none cursor-pointer hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed">Cancel</button>
+                  <button type="submit" disabled={submitting}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white border-none cursor-pointer hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }}>
+                    {submitting ? 'Saving...' : 'Save'}
+                  </button>
                 </div>
               </form>
             </motion.div>
@@ -202,8 +227,10 @@ function AdminPromos() {
               <h3 className="text-white font-semibold text-lg mb-2">Remove Discount?</h3>
               <p className="text-white/40 text-sm mb-6">Remove the <span className="text-green-400">{confirmRemove.discount?.percentage}%</span> discount from <span className="text-white/70">{confirmRemove.title}</span>?</p>
               <div className="flex gap-3">
-                <button onClick={() => setConfirmRemove(null)} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white/60 bg-white/5 border-none cursor-pointer hover:bg-white/10 transition-all">Cancel</button>
-                <button onClick={handleRemoveDiscount} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white bg-red-500 border-none cursor-pointer hover:bg-red-600 transition-all">Remove</button>
+                <button onClick={() => setConfirmRemove(null)} disabled={submitting} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white/60 bg-white/5 border-none cursor-pointer hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed">Cancel</button>
+                <button onClick={handleRemoveDiscount} disabled={submitting} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white bg-red-500 border-none cursor-pointer hover:bg-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                  {submitting ? 'Removing...' : 'Remove'}
+                </button>
               </div>
             </motion.div>
           </motion.div>
